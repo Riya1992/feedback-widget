@@ -91,6 +91,7 @@
   <script>
   // --- 1. CONFIGURATION ---
   const FLOWISE_API_URL = "https://cloud.flowiseai.com/api/v1/prediction/36de5551-61db-4bbc-bf89-984896644bbb";
+  const FLOWISE_API_KEY = "xTtNeelwMIMPLu9WKsTbyD2Y9wjh6QmhvDGnu3v4XGw";
 
   // --- 2. ISSUE CATEGORIES & MAPPINGS ---
   const issueCategories = [
@@ -234,7 +235,7 @@ Auto-Triage Category: ${categories}`;
       // Send directly to Flowise Agent
       const flowiseResponse = await fetch(FLOWISE_API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${xTtNeelwMIMPLu9WKsTbyD2Y9wjh6QmhvDGnu3v4XGw}`},
         body: JSON.stringify({
           question: flowisePrompt
         })
