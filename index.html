@@ -90,106 +90,174 @@
       <button class="btn" style="background:#666;" onclick="resetDefaults()">Reset</button>
     </div>
   </div>
-
+  
   <script>
-    // --- 1. CONFIGURATION (Replace with your actual keys and endpoints) ---
-    const SUPABASE_URL = "https://YOUR_SUPABASE_PROJECT_REF.supabase.co";
-    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
-    const FLOWISE_API_URL = "https://cloud.flowiseai.com/api/v1/prediction/36de5551-61db-4bbc-bf89-984896644bbb";
+  // --- 1. CONFIGURATION ---
+  const SUPABASE_URL = "https://YOUR_SUPABASE_PROJECT_REF.supabase.co";
+  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+  const FLOWISE_API_URL = "https://cloud.flowiseai.com/api/v1/prediction/36de5551-61db-4bbc-bf89-984896644bbb";
 
-    // Initialize Supabase Client
-    let supabaseClient = null;
-    if (window.supabase && SUPABASE_URL.startsWith("http")) {
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Initialize Supabase Client
+  let supabaseClient = null;
+  if (window.supabase && SUPABASE_URL.startsWith("http")) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+
+  // --- 2. 11 ISSUE CATEGORIES & MAPPINGS ---
+  const issueCategories = [
+    { label: "Is mostly correct", category: "Clarity" },
+    { label: "Missing FAQ section", category: "Missing Information" },
+    { label: "Poor formatting", category: "Formatting" },
+    { label: "Has minor grammar problems", category: "Clarity" },
+    { label: "Information is incorrect", category: "Accuracy" },
+    { label: "Procedure does not work", category: "Accuracy" },
+    { label: "Steps are missing", category: "Missing Information" },
+    { label: "URL is wrong", category: "Accuracy" },
+    { label: "Irrelevant information", category: "Clarity" },
+    { label: "Steps are confusing", category: "Clarity" },
+    { label: "Outdated information", category: "Outdated Content" }
+  ];
+
+  // --- 3. DYNAMIC CHECKBOX GENERATION & UI LOGIC ---
+  function renderOptions() {
+    const container = document.getElementById("optionsContainer");
+    container.innerHTML = "";
+    
+    issueCategories.forEach((item, index) => {
+      const labelEl = document.createElement("label");
+      labelEl.style.display = "block";
+      labelEl.style.margin = "4px 0";
+      labelEl.style.fontSize = "13px";
+      labelEl.style.cursor = "pointer";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.name = "issueOption";
+      checkbox.value = item.label;
+      checkbox.setAttribute("data-category", item.category);
+      checkbox.onchange = updateAutoTriageBadge;
+
+      labelEl.appendChild(checkbox);
+      labelEl.appendChild(document.createTextNode(" " + item.label));
+      container.appendChild(labelEl);
+    });
+  }
+
+  function handleTypeChange() {
+    const type = document.querySelector('input[name="feedbackType"]:checked')?.value;
+    const optionsWrapper = document.getElementById("optionsWrapper");
+    const optionsHeader = document.getElementById("optionsHeader");
+    const display = document.getElementById("categoryDisplay");
+    const badge = document.getElementById("badge");
+
+    if (type === "unhelpful") {
+      renderOptions();
+      optionsHeader.innerText = "What went wrong with this article?";
+      optionsWrapper.classList.remove("hidden");
+      display.classList.remove("hidden");
+      badge.innerText = "Needs Documentation Review";
+    } else {
+      optionsWrapper.classList.add("hidden");
+      display.classList.add("hidden");
+    }
+  }
+
+  function updateAutoTriageBadge() {
+    const checkedBoxes = Array.from(document.querySelectorAll('input[name="issueOption"]:checked'));
+    const badge = document.getElementById("badge");
+
+    if (checkedBoxes.length === 0) {
+      badge.innerText = "Needs Documentation Review";
+      return;
     }
 
-    // --- 2. UI HANDLERS ---
-    function handleTypeChange() {
-      const type = document.querySelector('input[name="feedbackType"]:checked')?.value;
-      const display = document.getElementById('categoryDisplay');
-      const badge = document.getElementById('badge');
+    // Extract unique triage categories from selected checkboxes
+    const categories = [...new Set(checkedBoxes.map(cb => cb.getAttribute("data-category")))];
+    badge.innerText = categories.join(" & ");
+  }
 
-      if (type === 'unhelpful') {
-        display.classList.remove('hidden');
-        badge.innerText = 'Needs Documentation Review';
-      } else {
-        display.classList.add('hidden');
+  function resetDefaults() {
+    document.querySelectorAll('input[name="feedbackType"]').forEach(el => el.checked = false);
+    document.getElementById("optionsWrapper").classList.add("hidden");
+    document.getElementById("categoryDisplay").classList.add("hidden");
+    const submitBtn = document.getElementById("submitBtn");
+    submitBtn.disabled = false;
+    submitBtn.innerText = "Submit Feedback";
+  }
+
+  // --- 4. SUBMISSION HANDLER WITH FLOWISE & SUPABASE PAYLOAD ---
+  async function submitFeedback() {
+    const submitBtn = document.getElementById("submitBtn");
+    const feedbackType = document.querySelector('input[name="feedbackType"]:checked')?.value;
+
+    if (!feedbackType) {
+      alert("Please select whether the article was helpful or unhelpful.");
+      return;
+    }
+
+    // Collect all checked checkbox values
+    const selectedIssues = Array.from(document.querySelectorAll('input[name="issueOption"]:checked'))
+      .map(cb => cb.value);
+
+    // Derive triage categories
+    const categories = feedbackType === "unhelpful" && selectedIssues.length > 0
+      ? [...new Set(selectedIssues.map(issue => {
+          const found = issueCategories.find(item => item.label === issue);
+          return found ? found.category : "Needs Review";
+        }))].join(", ")
+      : feedbackType === "unhelpful" ? "Needs Documentation Review" : "Positive Feedback";
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = "Submitting...";
+
+    const pageTitle = document.title;
+    const pageUrl = window.location.href;
+    const issuesSummary = selectedIssues.length > 0 ? selectedIssues.join(", ") : "None specified";
+
+    // Diagnostic payload sent to Flowise Agent
+    const flowisePrompt = `[Documentation Feedback Incident]
+Article Title: ${pageTitle}
+Page URL: ${pageUrl}
+Feedback Status: ${feedbackType}
+Selected Issues: ${issuesSummary}
+Auto-Triage Category: ${categories}`;
+
+    try {
+      // Step A: Send to Supabase (if client is configured)
+      if (supabaseClient) {
+        const { error: dbError } = await supabaseClient
+          .from("feedback_incidents")
+          .insert([{ 
+            article_title: pageTitle,
+            url: pageUrl,
+            status: feedbackType,
+            issues: selectedIssues,
+            category: categories
+          }]);
+
+        if (dbError) console.error("Supabase Log Error:", dbError);
       }
-    }
 
-    function resetDefaults() {
-      document.querySelectorAll('input[name="feedbackType"]').forEach(el => el.checked = false);
-      document.getElementById('categoryDisplay').classList.add('hidden');
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = false;
-      submitBtn.innerText = "Submit Feedback";
-    }
-
-    // --- 3. SUBMISSION HANDLER ---
-    async function submitFeedback() {
-      const submitBtn = document.getElementById('submitBtn');
-      const feedbackType = document.querySelector('input[name="feedbackType"]:checked')?.value;
-
-      if (!feedbackType) {
-        alert("Please select whether the article was helpful or unhelpful.");
-        return;
+      // Step B: Send to Flowise Agent
+      if (FLOWISE_API_URL.startsWith("http")) {
+        await fetch(FLOWISE_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: flowisePrompt
+          })
+        });
       }
 
-      submitBtn.disabled = true;
-      submitBtn.innerText = "Submitting...";
+      alert("Thank you! Feedback received successfully.");
+      resetDefaults();
 
-      const pageTitle = document.title;
-      const pageUrl = window.location.href;
-      const triageCategory = feedbackType === 'unhelpful' ? 'Needs Documentation Review' : 'Positive Feedback';
-
-      // Payload for database and Flowise Agent
-      const payload = {
-        article_title: pageTitle,
-        page_url: pageUrl,
-        feedback_status: feedbackType,
-        triage_category: triageCategory,
-        timestamp: new Date().toISOString()
-      };
-
-      try {
-        // Step A: Send to Supabase (if configured)
-        if (supabaseClient) {
-          const { error: dbError } = await supabaseClient
-            .from('feedback_incidents')
-            .insert([{ 
-              article_title: payload.article_title,
-              url: payload.page_url,
-              status: payload.feedback_status,
-              category: payload.triage_category
-            }]);
-
-          if (dbError) console.error("Supabase Log Error:", dbError);
-        }
-
-        // Step B: Send to Flowise Triage Agent
-        if (FLOWISE_API_URL.startsWith("http")) {
-          await fetch(FLOWISE_API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              question: `[Documentation Feedback Incident]
-Article: ${payload.article_title}
-URL: ${payload.page_url}
-Rating: ${payload.feedback_status}
-Auto-Triage Category: ${payload.triage_category}`
-            })
-          });
-        }
-
-        alert("Thank you! Feedback received successfully.");
-        resetDefaults();
-
-      } catch (err) {
-        console.error("Submission failed:", err);
-        alert("Feedback submitted (logged locally).");
-        resetDefaults();
-      }
+    } catch (err) {
+      console.error("Submission error:", err);
+      alert("Feedback submitted (logged locally).");
+      resetDefaults();
     }
-  </script>
+  }
+</script>
 </body>
 </html>
