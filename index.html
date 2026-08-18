@@ -123,7 +123,7 @@
     const container = document.getElementById("optionsContainer");
     container.innerHTML = "";
     
-    issueCategories.forEach((item, index) => {
+    issueCategories.forEach((item) => {
       const labelEl = document.createElement("label");
       labelEl.style.display = "block";
       labelEl.style.margin = "4px 0";
@@ -228,40 +228,49 @@
     }
 
     const issuesSummary = selectedIssues.length > 0 ? selectedIssues.join(", ") : "None specified";
+    const sentiment = feedbackType === "helpful" ? "positive" : "negative";
 
     // 2. Diagnostic payload sent to Flowise Agent
     const flowisePrompt = `[Documentation Feedback Incident]
 Article Title: ${articleTitle}
 Page URL: ${gitbookUrl}
-Feedback Status: ${feedbackType}
+Feedback Type: ${feedbackType}
+Feedback Sentiment: ${sentiment}
 Selected Issues: ${issuesSummary}
 Auto-Triage Category: ${categories}`;
 
     try {
-      // Step A: Send to Supabase (if client is configured)
+      // Step A: Send to Supabase table (public.kb_feedback)
       if (supabaseClient) {
         const { error: dbError } = await supabaseClient
-          .from("feedback_incidents")
+          .from("kb_feedback")
           .insert([{ 
-            article_title: pageTitle,
-            url: pageUrl,
-            status: feedbackType,
-            issues: selectedIssues,
-            category: categories
+            comment: issuesSummary,
+            feedback_type: feedbackType,
+            feedback_sentiment: sentiment,
+            triage_status: "Pending_Triage",
+            severity_score: feedbackType === "helpful" ? 0 : 6
           }]);
 
-        if (dbError) console.error("Supabase Log Error:", dbError);
+        if (dbError) {
+          console.error("Supabase Database Insert Error:", dbError);
+          throw dbError;
+        }
       }
 
       // Step B: Send to Flowise Agent
       if (FLOWISE_API_URL.startsWith("http")) {
-        await fetch(FLOWISE_API_URL, {
+        const flowiseResponse = await fetch(FLOWISE_API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             question: flowisePrompt
           })
         });
+
+        if (!flowiseResponse.ok) {
+          console.warn("Flowise API HTTP Status:", flowiseResponse.status);
+        }
       }
 
       alert("Thank you! Feedback received successfully.");
@@ -269,8 +278,9 @@ Auto-Triage Category: ${categories}`;
 
     } catch (err) {
       console.error("Submission error:", err);
-      alert("Feedback submitted (logged locally).");
-      resetDefaults();
+      alert("Feedback failed to submit. Please check browser console for details.");
+      submitBtn.disabled = false;
+      submitBtn.innerText = "Submit Feedback";
     }
   }
 </script>
