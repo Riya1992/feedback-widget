@@ -210,14 +210,29 @@
     submitBtn.disabled = true;
     submitBtn.innerText = "Submitting...";
 
-    const pageTitle = document.title;
-    const pageUrl = window.location.href;
+    // 1. Capture the actual GitBook article URL and parse its title
+    const gitbookUrl = document.referrer || window.location.href;
+    let articleTitle = "General Runbook";
+    try {
+      if (document.referrer) {
+        const urlObj = new URL(document.referrer);
+        const pathSegments = urlObj.pathname.split("/").filter(Boolean);
+        if (pathSegments.length > 0) {
+          articleTitle = pathSegments[pathSegments.length - 1]
+            .replace(/-/g, " ")
+            .replace(/\b\w/g, char => char.toUpperCase());
+        }
+      }
+    } catch (e) {
+      articleTitle = document.title;
+    }
+
     const issuesSummary = selectedIssues.length > 0 ? selectedIssues.join(", ") : "None specified";
 
-    // Diagnostic payload sent to Flowise Agent
+    // 2. Diagnostic payload sent to Flowise Agent
     const flowisePrompt = `[Documentation Feedback Incident]
-Article Title: ${pageTitle}
-Page URL: ${pageUrl}
+Article Title: ${articleTitle}
+Page URL: ${gitbookUrl}
 Feedback Status: ${feedbackType}
 Selected Issues: ${issuesSummary}
 Auto-Triage Category: ${categories}`;
