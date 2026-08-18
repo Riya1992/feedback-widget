@@ -7,9 +7,6 @@
   <meta property="og:title" content="Rate this article" />
   <meta name="twitter:title" content="Rate this article" />
 
-  <!-- Supabase CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -93,17 +90,9 @@
   
   <script>
   // --- 1. CONFIGURATION ---
-  const SUPABASE_URL = "https://sqznrekejcfhwakrfqzd.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxem5yZWtlamNmaHdha3JmcXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5ODQ1NDIsImV4cCI6MjEwMTU2MDU0Mn0.VZRx-L0NJm-b_XEluBe906nMtxDVtTimuT8K1VRiWKM";
   const FLOWISE_API_URL = "https://cloud.flowiseai.com/api/v1/prediction/36de5551-61db-4bbc-bf89-984896644bbb";
 
-  // Initialize Supabase Client
-  let supabaseClient = null;
-  if (window.supabase && SUPABASE_URL.startsWith("http")) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
-
-  // --- 2. 11 ISSUE CATEGORIES & MAPPINGS ---
+  // --- 2. ISSUE CATEGORIES & MAPPINGS ---
   const issueCategories = [
     { label: "Is mostly correct", category: "Clarity" },
     { label: "Missing FAQ section", category: "Missing Information" },
@@ -184,7 +173,7 @@
     submitBtn.innerText = "Submit Feedback";
   }
 
-  // --- 4. SUBMISSION HANDLER WITH FLOWISE & SUPABASE PAYLOAD ---
+  // --- 4. SUBMISSION HANDLER (FLOWISE ONLY) ---
   async function submitFeedback() {
     const submitBtn = document.getElementById("submitBtn");
     const feedbackType = document.querySelector('input[name="feedbackType"]:checked')?.value;
@@ -242,38 +231,17 @@ Selected Issues: ${issuesSummary}
 Auto-Triage Category: ${categories}`;
 
     try {
-      // Step A: Send to Supabase table (public.kb_feedback)
-      if (supabaseClient) {
-        const { error: dbError } = await supabaseClient
-          .from("kb_feedback")
-          .insert([{ 
-            article_id: articleId,
-            comment: issuesSummary,
-            feedback_type: feedbackType,
-            feedback_sentiment: sentiment,
-            triage_status: "Pending_Triage",
-            severity_score: feedbackType === "helpful" ? 0 : 6
-          }]);
+      // Send directly to Flowise Agent
+      const flowiseResponse = await fetch(FLOWISE_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: flowisePrompt
+        })
+      });
 
-        if (dbError) {
-          console.error("Supabase Database Insert Error:", dbError);
-          throw dbError;
-        }
-      }
-
-      // Step B: Send to Flowise Agent
-      if (FLOWISE_API_URL.startsWith("http")) {
-        const flowiseResponse = await fetch(FLOWISE_API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            question: flowisePrompt
-          })
-        });
-
-        if (!flowiseResponse.ok) {
-          console.warn("Flowise API HTTP Status:", flowiseResponse.status);
-        }
+      if (!flowiseResponse.ok) {
+        console.warn("Flowise API HTTP Status:", flowiseResponse.status);
       }
 
       alert("Thank you! Feedback received successfully.");
@@ -286,6 +254,6 @@ Auto-Triage Category: ${categories}`;
       submitBtn.innerText = "Submit Feedback";
     }
   }
-</script>
+  </script>
 </body>
 </html>
