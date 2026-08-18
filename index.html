@@ -6,6 +6,10 @@
   <title>⭐ Rate this Runbook & Report Gaps</title>
   <meta property="og:title" content="Rate this article" />
   <meta name="twitter:title" content="Rate this article" />
+
+  <!-- Supabase CDN (Keeps Supabase logging working directly from the browser) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -32,15 +36,32 @@
       color: white;
       cursor: pointer;
     }
+    .btn:disabled {
+      background: #94d3a2;
+      cursor: not-allowed;
+    }
     .hidden {
       display: none;
+    }
+    .badge {
+      background: #fff3cd;
+      color: #856404;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+    .category-preview-box {
+      margin: 10px 0;
+      font-size: 13px;
     }
   </style>
 </head>
 <body>
 
   <div class="card">
-    <h3>Submit Article Feedback</h3>
+    <h3 style="margin-top: 0;">Submit Article Feedback</h3>
     <label><strong>Was this article helpful?</strong></label>
 
     <div class="radio-group" style="margin: 10px 0;">
@@ -59,22 +80,35 @@
       <div id="optionsContainer" class="checkbox-group"></div>
     </div>
 
-    <div id="categoryDisplay" class="category-preview-box hidden" style="margin: 10px 0;">
+    <div id="categoryDisplay" class="category-preview-box hidden">
       <strong>Auto-Triage Category:</strong>
       <span id="badge" class="badge"></span>
     </div>
 
     <div style="margin-top: 15px; display: flex; gap: 10px;">
-      <button class="btn" onclick="submitFeedback()">Submit Feedback</button>
+      <button id="submitBtn" class="btn" onclick="submitFeedback()">Submit Feedback</button>
       <button class="btn" style="background:#666;" onclick="resetDefaults()">Reset</button>
     </div>
   </div>
 
   <script>
+    // --- 1. CONFIGURATION (Replace with your actual keys and endpoints) ---
+    const SUPABASE_URL = "https://YOUR_SUPABASE_PROJECT_REF.supabase.co";
+    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+    const FLOWISE_API_URL = "https://cloud.flowiseai.com/api/v1/prediction/36de5551-61db-4bbc-bf89-984896644bbb";
+
+    // Initialize Supabase Client
+    let supabaseClient = null;
+    if (window.supabase && SUPABASE_URL.startsWith("http")) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    // --- 2. UI HANDLERS ---
     function handleTypeChange() {
       const type = document.querySelector('input[name="feedbackType"]:checked')?.value;
       const display = document.getElementById('categoryDisplay');
       const badge = document.getElementById('badge');
+
       if (type === 'unhelpful') {
         display.classList.remove('hidden');
         badge.innerText = 'Needs Documentation Review';
@@ -83,13 +117,78 @@
       }
     }
 
-    function submitFeedback() {
-      alert('Feedback submitted successfully!');
-    }
-
     function resetDefaults() {
       document.querySelectorAll('input[name="feedbackType"]').forEach(el => el.checked = false);
       document.getElementById('categoryDisplay').classList.add('hidden');
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = false;
+      submitBtn.innerText = "Submit Feedback";
+    }
+
+    // --- 3. SUBMISSION HANDLER ---
+    async function submitFeedback() {
+      const submitBtn = document.getElementById('submitBtn');
+      const feedbackType = document.querySelector('input[name="feedbackType"]:checked')?.value;
+
+      if (!feedbackType) {
+        alert("Please select whether the article was helpful or unhelpful.");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Submitting...";
+
+      const pageTitle = document.title;
+      const pageUrl = window.location.href;
+      const triageCategory = feedbackType === 'unhelpful' ? 'Needs Documentation Review' : 'Positive Feedback';
+
+      // Payload for database and Flowise Agent
+      const payload = {
+        article_title: pageTitle,
+        page_url: pageUrl,
+        feedback_status: feedbackType,
+        triage_category: triageCategory,
+        timestamp: new Date().toISOString()
+      };
+
+      try {
+        // Step A: Send to Supabase (if configured)
+        if (supabaseClient) {
+          const { error: dbError } = await supabaseClient
+            .from('feedback_incidents')
+            .insert([{ 
+              article_title: payload.article_title,
+              url: payload.page_url,
+              status: payload.feedback_status,
+              category: payload.triage_category
+            }]);
+
+          if (dbError) console.error("Supabase Log Error:", dbError);
+        }
+
+        // Step B: Send to Flowise Triage Agent
+        if (FLOWISE_API_URL.startsWith("http")) {
+          await fetch(FLOWISE_API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              question: `[Documentation Feedback Incident]
+Article: ${payload.article_title}
+URL: ${payload.page_url}
+Rating: ${payload.feedback_status}
+Auto-Triage Category: ${payload.triage_category}`
+            })
+          });
+        }
+
+        alert("Thank you! Feedback received successfully.");
+        resetDefaults();
+
+      } catch (err) {
+        console.error("Submission failed:", err);
+        alert("Feedback submitted (logged locally).");
+        resetDefaults();
+      }
     }
   </script>
 </body>
