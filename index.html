@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Article Feedback</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: transparent;
+    }
+    .card {
+      border: 1px solid #e1e4e8;
+      border-radius: 8px;
+      padding: 16px;
+      background: #ffffff;
+      max-width: 480px;
+    }
+    .radio-group label {
+      margin-right: 15px;
+      cursor: pointer;
+    }
+    .btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      background: #0366d6;
+      color: white;
+      cursor: pointer;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h3>Submit Article Feedback</h3>
+    <label><strong>Was this article helpful?</strong></label>
+
+    <div class="radio-group" style="margin: 10px 0;">
+      <label>
+        <input type="radio" name="feedbackType" value="helpful" onchange="handleTypeChange()" />
+        👍 Helpful
+      </label>
+      <label>
+        <input type="radio" name="feedbackType" value="unhelpful" onchange="handleTypeChange()" />
+        👎 Unhelpful
+      </label>
+    </div>
+
+    <div id="optionsWrapper" class="hidden">
+      <label id="optionsHeader" style="font-weight: bold; font-size: 13px;"></label>
+      <div id="optionsContainer" class="checkbox-group"></div>
+    </div>
+
+    <div id="categoryDisplay" class="category-preview-box hidden" style="margin: 10px 0;">
+      <strong>Auto-Triage Category:</strong>
+      <span id="badge" class="badge"></span>
+    </div>
+
+    <div style="margin-top: 15px; display: flex; gap: 10px;">
+      <button class="btn" onclick="submitFeedback()">Submit Feedback</button>
+      <button class="btn" style="background:#666;" onclick="resetDefaults()">Reset</button>
+    </div>
+  </div>
+
+  <script>
+    function handleTypeChange() {
+      const type = document.querySelector('input[name="feedbackType"]:checked')?.value;
+      const display = document.getElementById('categoryDisplay');
+      const badge = document.getElementById('badge');
+      if (type === 'unhelpful') {
+        display.classList.remove('hidden');
+        badge.innerText = 'Needs Documentation Review';
+      } else {
+        display.classList.add('hidden');
+      }
+    }
+
+    function submitFeedback() {
+      alert('Feedback submitted successfully!');
+    }
+
+    function resetDefaults() {
+      document.querySelectorAll('input[name="feedbackType"]').forEach(el => el.checked = false);
+      document.getElementById('categoryDisplay').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
