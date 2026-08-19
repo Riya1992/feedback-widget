@@ -91,6 +91,7 @@
   <script>
   // --- 1. CONFIGURATION ---
   const FLOWISE_API_URL = "https://cloud.flowiseai.com/api/v1/prediction/36de5551-61db-4bbc-bf89-984896644bbb";
+  const FLOWISE_API_KEY = "xTtNeelwMIMPLu9WKsTbyD2Y9wjh6QmhvDGnu3v4XGw";
 
   // --- 2. ISSUE CATEGORIES & MAPPINGS ---
   const issueCategories = [
@@ -174,7 +175,7 @@
   }
 
   // --- 4. SUBMISSION HANDLER ---
-  async function submitFeedback() {
+    async function submitFeedback() {
     const submitBtn = document.getElementById("submitBtn");
     const feedbackType = document.querySelector('input[name="feedbackType"]:checked')?.value;
 
@@ -235,7 +236,8 @@ Auto-Triage Category: ${categories}`;
       const flowiseResponse = await fetch(FLOWISE_API_URL, {
         method: "POST",
         headers: { 
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${FLOWISE_API_KEY}`
         },
         body: JSON.stringify({
           question: flowisePrompt
