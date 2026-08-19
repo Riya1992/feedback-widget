@@ -235,7 +235,8 @@ Auto-Triage Category: ${categories}`;
       // Send directly to Flowise Agent
       const flowiseResponse = await fetch(FLOWISE_API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${xTtNeelwMIMPLu9WKsTbyD2Y9wjh6QmhvDGnu3v4XGw}`},
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer xTtNeelwMIMPLu9WKsTbyD2Y9wjh6QmhvDGnu3v4XGw"
+                 },
         body: JSON.stringify({
           question: flowisePrompt
         })
